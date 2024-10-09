@@ -1,49 +1,42 @@
-import sys
-import os
 from fastapi import FastAPI, HTTPException
-import pandas as pd
-from calculator.solar_calculator import solar_guarantee_calculator
-from models.solar_calculator import SolarGuarantee
+from pydantic import BaseModel
+from typing import List
 from utils import connect_database, fetch_effective_rates
-
-# Add the current directory to the system path
-sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+from calculator.solar_calculator import solar_guarantee_calculator
 
 app = FastAPI()
 
+class SolarGuaranteeRequest(BaseModel):
+    client_id: int
+    solar_rate: float
+    line_rental: float = 0.0
+    threshold: float = 0.0
+    solar_guarantee_percentage: List[float]
+    admin_fee: float = 0.0
+
 @app.post("/calculate/solar_guarantee")
-async def calculate_solar_guarantee(params: SolarGuarantee):
-    # Check if client IDs are provided
-    if not params.client_ids:
-        raise HTTPException(status_code=400, detail="No client IDs provided")
-    
-    # Connect to the database
+async def calculate_solar_guarantee(request: SolarGuaranteeRequest):
     conn = connect_database()
     if conn is None:
-        raise HTTPException(status_code=500, detail="Failed to connect to the database")
-    
-    # Fetch client data
-    data = fetch_effective_rates(conn, params.client_ids)
-    if data is None or data.empty:
-        raise HTTPException(status_code=404, detail="No data found for the provided client IDs")
-    
-    # Call the calculator with the provided input parameters
+        raise HTTPException(status_code=500, detail="Database connection error")
+
     try:
-        result = solar_guarantee_calculator(data, 
-                                            params.solar_rate, 
-                                            params.line_rental, 
-                                            params.threshold, 
-                                            params.solar_guarantee_percentage, 
-                                            params.admin_fee)
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        # Fetch data for the specific client
+        data = fetch_effective_rates(conn, [request.client_id])
+        if data is None or data.empty:
+            raise HTTPException(status_code=404, detail="No data found for the provided client ID")
 
-    # Close the database connection
-    conn.close()
+        # Call the solar guarantee calculator
+        summary = solar_guarantee_calculator(
+            data,
+            request.solar_rate,
+            request.line_rental,
+            request.threshold,
+            request.solar_guarantee_percentage,
+            request.admin_fee
+        )
+        
+        return summary.to_dict(orient='records')
 
-    # Return the result as JSON
-    return {"status": "success", "data": result.to_dict(orient='records')}
-
-if __name__ == "__main__":
-    import uvicorn
-    uvicorn.run("main:app", host="127.0.0.1", port=8000, reload=True)
+    finally:
+        conn.close()
