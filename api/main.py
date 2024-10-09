@@ -35,7 +35,22 @@ async def calculate_solar_guarantee(request: SolarGuaranteeRequest):
             request.solar_guarantee_percentage,
             request.admin_fee
         )
-        
+
+        # Reorganize the summary DataFrame to the desired output format
+        summary = summary[[
+            'Supply_Period',
+            'kw',
+            'Solar_Consumption_kw',
+            'Non_Solar_Consumption_kw',
+            'Solar_Charge_pHp',
+            'Non_Solar_Charge_pHp',
+            'Total_Charge_pHp',
+            'Effective_Rate'
+        ]]
+
+         # Sort by Supply_Period in ascending order (oldest to latest)
+        summary = summary.sort_values(by='Supply_Period')
+
         return summary.to_dict(orient='records')
 
     finally:

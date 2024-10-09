@@ -56,6 +56,9 @@ def solar_guarantee_calculator(data, solar_rate, line_rental=0, threshold=0, sol
     # Supply Period Calculation
     data['Supply_Period'], _ = zip(*data['datetime'].apply(get_supply_period))
 
+    # Convert Supply_Period to a datetime format for sorting
+    data['Supply_Period'] = pd.to_datetime(data['Supply_Period'], format='%b-%y')
+
     # Summary Pivot Table (Aggregated by Supply Period)
     pivot_df = data.pivot_table(
         index=['Supply_Period'],
